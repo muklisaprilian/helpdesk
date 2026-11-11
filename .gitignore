@@ -1,0 +1,11 @@
+.env
+node_modules/
+dist/
+*.exe
+*.test
+coverage/
+.DS_Store
+frontend/dist/
+backend/bin/
+.idea/
+.vscode/
