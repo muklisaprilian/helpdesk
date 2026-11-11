@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../components/AppShell.vue'
 import StateBlock from '../components/StateBlock.vue'
 import StatusBadge from '../components/StatusBadge.vue'
@@ -10,6 +10,7 @@ import { useAuthStore } from '../stores/auth'
 import type { Priority, Status, Ticket, User } from '../types'
 
 const route = useRoute()
+const router = useRouter()
 const auth = useAuthStore()
 
 const loading = ref(false)
@@ -22,10 +23,25 @@ const commentBody = ref('')
 const commentInternal = ref(false)
 const selectedPriority = ref<Priority>('medium')
 const selectedAssignee = ref('')
+const editing = ref(false)
+const editForm = reactive({ title: '', description: '', category: '' })
 
 const nextStatuses = computed(() =>
   ticket.value && auth.role ? allowedNextStatuses(ticket.value.status, auth.role) : [],
 )
+
+const canEditContent = computed(() => {
+  if (!ticket.value || !auth.user) return false
+  if (ticket.value.status === 'closed') return false
+  if (auth.isAgentOrAdmin) return true
+  return ticket.value.requester_id === auth.user.id
+})
+
+const canDelete = computed(() => {
+  if (!ticket.value || !auth.user) return false
+  if (auth.isAgentOrAdmin) return true
+  return ticket.value.requester_id === auth.user.id && ticket.value.status === 'open'
+})
 
 async function load() {
   loading.value = true
@@ -36,6 +52,7 @@ async function load() {
     ticket.value = data
     selectedPriority.value = data.priority
     selectedAssignee.value = data.assignee_id || ''
+    syncEditForm(data)
     if (auth.isAdmin) {
       const usersRes = await http.get<User[]>('/users')
       agents.value = usersRes.data.filter((u) => u.role === 'agent' || u.role === 'admin')
@@ -46,6 +63,57 @@ async function load() {
     error.value = getErrorMessage(err, 'Failed to load ticket')
   } finally {
     loading.value = false
+  }
+}
+
+function syncEditForm(data: Ticket) {
+  editForm.title = data.title
+  editForm.description = data.description
+  editForm.category = data.category
+}
+
+function startEdit() {
+  if (!ticket.value) return
+  syncEditForm(ticket.value)
+  editing.value = true
+  actionError.value = ''
+}
+
+function cancelEdit() {
+  editing.value = false
+  if (ticket.value) syncEditForm(ticket.value)
+}
+
+async function saveContent() {
+  if (!ticket.value) return
+  saving.value = true
+  actionError.value = ''
+  try {
+    const { data } = await http.patch<Ticket>(`/tickets/${ticket.value.id}`, {
+      title: editForm.title.trim(),
+      description: editForm.description.trim(),
+      category: editForm.category.trim(),
+    })
+    ticket.value = data
+    editing.value = false
+  } catch (err) {
+    actionError.value = getErrorMessage(err, 'Failed to save ticket')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function deleteTicket() {
+  if (!ticket.value) return
+  if (!confirm('Delete this ticket permanently?')) return
+  saving.value = true
+  actionError.value = ''
+  try {
+    await http.delete(`/tickets/${ticket.value.id}`)
+    router.push('/tickets')
+  } catch (err) {
+    actionError.value = getErrorMessage(err, 'Failed to delete ticket')
+    saving.value = false
   }
 }
 
@@ -136,24 +204,71 @@ onMounted(load)
                 <StatusBadge :priority="ticket.priority" />
               </div>
             </div>
+            <div class="btn-row">
+              <button
+                v-if="canEditContent && !editing"
+                class="btn btn-secondary"
+                type="button"
+                :disabled="saving"
+                @click="startEdit"
+              >
+                Edit
+              </button>
+              <button
+                v-if="canDelete"
+                class="btn btn-danger"
+                type="button"
+                :disabled="saving"
+                @click="deleteTicket"
+              >
+                Delete
+              </button>
+            </div>
           </div>
+
+          <p v-if="actionError" class="form-error">{{ actionError }}</p>
 
           <div class="detail-grid">
             <article class="panel">
-              <h2>Details</h2>
-              <p>{{ ticket.description }}</p>
-              <dl class="meta-list">
-                <div><dt>Category</dt><dd>{{ ticket.category }}</dd></div>
-                <div><dt>Requester</dt><dd>{{ ticket.requester?.name }}</dd></div>
-                <div><dt>Assignee</dt><dd>{{ ticket.assignee?.name || 'Unassigned' }}</dd></div>
-                <div><dt>Created</dt><dd>{{ new Date(ticket.created_at).toLocaleString() }}</dd></div>
-                <div><dt>Updated</dt><dd>{{ new Date(ticket.updated_at).toLocaleString() }}</dd></div>
-              </dl>
+              <h2>{{ editing ? 'Edit ticket' : 'Details' }}</h2>
+
+              <form v-if="editing" class="form" @submit.prevent="saveContent">
+                <label>
+                  Title
+                  <input v-model="editForm.title" type="text" required minlength="3" maxlength="200" />
+                </label>
+                <label>
+                  Category
+                  <input v-model="editForm.category" type="text" required minlength="2" maxlength="100" />
+                </label>
+                <label>
+                  Description
+                  <textarea v-model="editForm.description" rows="6" required minlength="3" />
+                </label>
+                <div class="btn-row">
+                  <button class="btn btn-primary" type="submit" :disabled="saving">
+                    {{ saving ? 'Saving…' : 'Save' }}
+                  </button>
+                  <button class="btn btn-ghost" type="button" :disabled="saving" @click="cancelEdit">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+
+              <template v-else>
+                <p>{{ ticket.description }}</p>
+                <dl class="meta-list">
+                  <div><dt>Category</dt><dd>{{ ticket.category }}</dd></div>
+                  <div><dt>Requester</dt><dd>{{ ticket.requester?.name }}</dd></div>
+                  <div><dt>Assignee</dt><dd>{{ ticket.assignee?.name || 'Unassigned' }}</dd></div>
+                  <div><dt>Created</dt><dd>{{ new Date(ticket.created_at).toLocaleString() }}</dd></div>
+                  <div><dt>Updated</dt><dd>{{ new Date(ticket.updated_at).toLocaleString() }}</dd></div>
+                </dl>
+              </template>
             </article>
 
             <aside class="panel">
               <h2>Actions</h2>
-              <p v-if="actionError" class="form-error">{{ actionError }}</p>
 
               <div v-if="nextStatuses.length" class="action-group">
                 <p class="muted">Change status</p>

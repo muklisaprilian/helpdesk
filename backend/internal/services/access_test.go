@@ -22,3 +22,16 @@ func TestCanCreateInternalNote(t *testing.T) {
 	assert.True(t, CanCreateInternalNote(models.RoleAgent))
 	assert.True(t, CanCreateInternalNote(models.RoleAdmin))
 }
+
+func TestCanEditTicketContent(t *testing.T) {
+	assert.True(t, CanEditTicketContent(models.RoleRequester, "u1", "u1", models.StatusOpen))
+	assert.False(t, CanEditTicketContent(models.RoleRequester, "u1", "u1", models.StatusClosed))
+	assert.False(t, CanEditTicketContent(models.RoleRequester, "u1", "u2", models.StatusOpen))
+	assert.True(t, CanEditTicketContent(models.RoleAgent, "a1", "u2", models.StatusInProgress))
+}
+
+func TestCanDeleteTicket(t *testing.T) {
+	assert.True(t, CanDeleteTicket(models.RoleRequester, "u1", "u1", models.StatusOpen))
+	assert.False(t, CanDeleteTicket(models.RoleRequester, "u1", "u1", models.StatusInProgress))
+	assert.True(t, CanDeleteTicket(models.RoleAdmin, "a1", "u2", models.StatusClosed))
+}

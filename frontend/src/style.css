@@ -197,6 +197,12 @@ textarea {
   border-color: var(--line);
 }
 
+.btn-danger {
+  background: #fef3f2;
+  color: var(--danger);
+  border-color: #fecdca;
+}
+
 .btn-row {
   display: flex;
   flex-wrap: wrap;

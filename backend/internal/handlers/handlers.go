@@ -125,6 +125,15 @@ func (h *Handler) UpdateTicket(c *gin.Context) {
 	c.JSON(http.StatusOK, ticket)
 }
 
+func (h *Handler) DeleteTicket(c *gin.Context) {
+	userID, role := middleware.CurrentUser(c)
+	if err := h.tickets.Delete(c.Param("id"), userID, role); err != nil {
+		writeErr(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
 func (h *Handler) AddComment(c *gin.Context) {
 	userID, role := middleware.CurrentUser(c)
 	var req models.CreateCommentRequest

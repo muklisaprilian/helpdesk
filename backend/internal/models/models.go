@@ -121,9 +121,12 @@ type CreateTicketRequest struct {
 }
 
 type UpdateTicketRequest struct {
-	Status     *Status   `json:"status"`
-	Priority   *Priority `json:"priority"`
-	AssigneeID *string   `json:"assignee_id"`
+	Title       *string   `json:"title"`
+	Description *string   `json:"description"`
+	Category    *string   `json:"category"`
+	Status      *Status   `json:"status"`
+	Priority    *Priority `json:"priority"`
+	AssigneeID  *string   `json:"assignee_id"`
 }
 
 type CreateCommentRequest struct {

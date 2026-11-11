@@ -154,15 +154,30 @@ func (r *TicketRepository) Update(t *models.Ticket) error {
 	var assignee sql.NullString
 	err := r.db.QueryRow(`
 		UPDATE tickets
-		SET status=$2, priority=$3, assignee_id=$4, updated_at=NOW()
+		SET title=$2, description=$3, category=$4, status=$5, priority=$6, assignee_id=$7, updated_at=NOW()
 		WHERE id=$1
 		RETURNING assignee_id, updated_at
-	`, t.ID, t.Status, t.Priority, NullString(t.AssigneeID)).Scan(&assignee, &t.UpdatedAt)
+	`, t.ID, t.Title, t.Description, t.Category, t.Status, t.Priority, NullString(t.AssigneeID)).Scan(&assignee, &t.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
 	t.AssigneeID = PtrString(assignee)
 	return err
+}
+
+func (r *TicketRepository) Delete(id string) error {
+	res, err := r.db.Exec(`DELETE FROM tickets WHERE id=$1`, id)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 type CommentRepository struct {

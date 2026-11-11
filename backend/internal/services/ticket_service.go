@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/simplejourney/helpdesk/internal/models"
 	"github.com/simplejourney/helpdesk/internal/repository"
@@ -93,6 +94,34 @@ func (s *TicketService) Update(id string, req models.UpdateTicketRequest, userID
 		return nil, NewAppError(http.StatusForbidden, "you can only update your own tickets")
 	}
 
+	editingContent := req.Title != nil || req.Description != nil || req.Category != nil
+	if editingContent {
+		if !CanEditTicketContent(role, userID, ticket.RequesterID, ticket.Status) {
+			return nil, NewAppError(http.StatusForbidden, "you cannot edit this ticket's content")
+		}
+		if req.Title != nil {
+			title := strings.TrimSpace(*req.Title)
+			if len(title) < 3 || len(title) > 200 {
+				return nil, NewAppError(http.StatusBadRequest, "title must be 3-200 characters")
+			}
+			ticket.Title = title
+		}
+		if req.Description != nil {
+			desc := strings.TrimSpace(*req.Description)
+			if len(desc) < 3 {
+				return nil, NewAppError(http.StatusBadRequest, "description must be at least 3 characters")
+			}
+			ticket.Description = desc
+		}
+		if req.Category != nil {
+			cat := strings.TrimSpace(*req.Category)
+			if len(cat) < 2 || len(cat) > 100 {
+				return nil, NewAppError(http.StatusBadRequest, "category must be 2-100 characters")
+			}
+			ticket.Category = cat
+		}
+	}
+
 	if req.Status != nil {
 		if !req.Status.Valid() {
 			return nil, NewAppError(http.StatusBadRequest, "invalid status")
@@ -100,7 +129,6 @@ func (s *TicketService) Update(id string, req models.UpdateTicketRequest, userID
 		if err := CanTransition(ticket.Status, *req.Status, role); err != nil {
 			return nil, NewAppError(http.StatusUnprocessableEntity, err.Error())
 		}
-		// Requester closing open tickets is cancel; requester reopening resolved is allowed.
 		ticket.Status = *req.Status
 	}
 
@@ -132,8 +160,6 @@ func (s *TicketService) Update(id string, req models.UpdateTicketRequest, userID
 				return nil, NewAppError(http.StatusBadRequest, "assignee must be an agent or admin")
 			}
 			ticket.AssigneeID = req.AssigneeID
-			// Claiming an open ticket moves it to in_progress when agent/admin assigns themselves
-			// only if status was not explicitly set in the same request.
 			if req.Status == nil && ticket.Status == models.StatusOpen {
 				ticket.Status = models.StatusInProgress
 			}
@@ -145,6 +171,27 @@ func (s *TicketService) Update(id string, req models.UpdateTicketRequest, userID
 	}
 	return s.Get(id, userID, role)
 }
+
+func (s *TicketService) Delete(id, userID string, role models.Role) error {
+	ticket, err := s.tickets.GetByID(id)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return NewAppError(http.StatusNotFound, "ticket not found")
+		}
+		return err
+	}
+	if !CanDeleteTicket(role, userID, ticket.RequesterID, ticket.Status) {
+		return NewAppError(http.StatusForbidden, "you cannot delete this ticket")
+	}
+	if err := s.tickets.Delete(id); err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return NewAppError(http.StatusNotFound, "ticket not found")
+		}
+		return err
+	}
+	return nil
+}
+
 
 func (s *TicketService) AddComment(ticketID string, req models.CreateCommentRequest, userID string, role models.Role) (*models.Comment, error) {
 	ticket, err := s.tickets.GetByID(ticketID)

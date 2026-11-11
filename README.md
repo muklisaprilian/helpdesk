@@ -76,7 +76,8 @@ Meaningful coverage includes:
 | GET | `/api/tickets` | Login (requester: own tickets only) |
 | POST | `/api/tickets` | Login |
 | GET | `/api/tickets/{id}` | Owner / agent / admin |
-| PATCH | `/api/tickets/{id}` | Role + transition rules |
+| PATCH | `/api/tickets/{id}` | Role + transition rules; content edit for owner/agent/admin |
+| DELETE | `/api/tickets/{id}` | Owner (open only) / agent / admin |
 | POST | `/api/tickets/{id}/comments` | Owner / agent / admin |
 | GET | `/api/users` | Admin |
 | PATCH | `/api/users/{id}/role` | Admin |

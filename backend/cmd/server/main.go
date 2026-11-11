@@ -71,6 +71,7 @@ func main() {
 			secured.POST("/tickets", h.CreateTicket)
 			secured.GET("/tickets/:id", h.GetTicket)
 			secured.PATCH("/tickets/:id", h.UpdateTicket)
+			secured.DELETE("/tickets/:id", h.DeleteTicket)
 			secured.POST("/tickets/:id/comments", h.AddComment)
 
 			admin := secured.Group("")

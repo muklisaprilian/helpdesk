@@ -115,7 +115,7 @@ paths:
         '404':
           description: Not found
     patch:
-      summary: Update status, priority, or assignee
+      summary: Update ticket fields, status, priority, or assignee
       security:
         - bearerAuth: []
       parameters:
@@ -131,6 +131,18 @@ paths:
           description: OK
         '422':
           description: Invalid status transition
+    delete:
+      summary: Delete ticket
+      description: Requester may delete own open tickets; agent/admin may delete any.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TicketId'
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Forbidden
   /tickets/{id}/comments:
     post:
       summary: Add comment or internal note
@@ -229,6 +241,9 @@ components:
     UpdateTicketRequest:
       type: object
       properties:
+        title: { type: string }
+        description: { type: string }
+        category: { type: string }
         status: { type: string, enum: [open, in_progress, resolved, closed] }
         priority: { type: string, enum: [low, medium, high, urgent] }
         assignee_id: { type: string, format: uuid, nullable: true }
